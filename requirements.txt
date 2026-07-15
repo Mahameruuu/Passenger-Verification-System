@@ -1,0 +1,34 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# pgvector — tipe Vector untuk SQLAlchemy + operator similarity (<=>)
+pgvector==0.5.0
+
+# MinIO — object storage untuk KTP & foto wajah (pengganti folder lokal)
+minio==7.2.20
+
+# OCR
+paddlepaddle==3.3.1
+paddleocr==3.7.0
+pillow==11.3.0
+
+# Face — deteksi/alignment/pose (InsightFace) + embedding (FaceNet)
+insightface==1.0.1
+onnxruntime==1.27.0
+opencv-python==4.10.0.84
+numpy==1.26.4
+torch==2.2.2
+facenet-pytorch==2.6.0
+
+# tools/capture_face.py (live camera client)
+requests==2.32.3
+
+# Alembic hanya untuk skema LAMA (lokal) dan sudah dinonaktifkan —
+# skema PostgreSQL GCP dikelola di luar aplikasi ini.
+alembic==1.14.0
