@@ -52,39 +52,24 @@ function renderWarnings(list) {
   });
 }
 
-/* ---------------------------------------------------------------- health */
-(async () => {
-  try {
-    const res = await fetch("/health");
-    const body = await res.json();
-    const badge = $("health");
-    const ok = body.database === "connected";
-    badge.textContent = ok ? "database terhubung" : "database mati";
-    badge.className = "badge " + (ok ? "ok" : "bad");
-  } catch {
-    $("health").textContent = "server tidak merespons";
-    $("health").className = "badge bad";
-  }
-})();
+/* Preloader layar penuh dengan teks yang bisa disesuaikan (OCR / wajah). */
+function showPreloader(text) {
+  $("preloaderText").textContent = text || "Memproses…";
+  $("preloader").classList.remove("hidden");
+}
+function hidePreloader() {
+  $("preloader").classList.add("hidden");
+}
 
-/** Penumpang aktif ditampilkan mencolok di tab wajah.
- *  Mendaftarkan wajah ke penumpang yang salah adalah kesalahan paling
- *  berbahaya di sistem ini — dan tidak memunculkan error apa pun. */
+/** Set penumpang aktif untuk tab registrasi & verifikasi wajah. */
 function setActivePassenger(p) {
   passengerId = p.id;
-  $("activePassenger").textContent = p.id;
-  $("activeName").textContent = `— ${p.full_name} (${p.registration_status})`;
 
   const html =
     `Wajah akan didaftarkan untuk <b>${p.full_name}</b> ` +
     `<span class="nik">NIK ${p.nik}</span>`;
   $("regTarget").innerHTML = html;
   $("regTarget").className = "target";
-
-  $("verTarget").innerHTML =
-    `Verifikasi 1:1 akan dijalankan terhadap <b>${p.full_name}</b> ` +
-    `<span class="nik">NIK ${p.nik}</span>`;
-  $("verTarget").className = "target";
 }
 
 /* =========================================================== 1. KTP + OCR */
@@ -94,7 +79,6 @@ $("ktpFile").onchange = (e) => {
   $("btnOcr").disabled = true;
   // Dokumen baru → reset form hasil OCR sebelumnya supaya tidak tersimpan keliru.
   $("ocrForm").classList.add("hidden");
-  $("ocrMeta").classList.add("hidden");
   $("ocrEmpty").classList.remove("hidden");
   $("btnEdit").disabled = true;
   $("btnSave").disabled = true;
@@ -132,7 +116,9 @@ function setFormEditable(on) {
 
 $("btnOcr").onclick = async () => {
   if (!documentId) return;
-  setStatus($("ktpStatus"), "Menjalankan OCR… (memuat model bisa makan waktu)", "busy");
+  // Preloader layar penuh: memberi tahu user OCR sedang diproses.
+  showPreloader("Memproses OCR…");
+  setStatus($("ktpStatus"), "", "");
   $("btnOcr").disabled = true;
 
   try {
@@ -146,26 +132,20 @@ $("btnOcr").onclick = async () => {
     $("f-bdate").value = p.birth_date ?? "";
     $("f-gender").value = p.gender ?? "";
     $("f-address").value = p.address ?? "";
-    $("f-status").textContent = res.ocr_status;
-    $("f-conf").textContent = (res.confidence * 100).toFixed(1) + "%";
 
     $("ocrEmpty").classList.add("hidden");
     $("ocrForm").classList.remove("hidden");
-    $("ocrMeta").classList.remove("hidden");
     setFormEditable(false);
     renderWarnings(res.warnings);
 
     // Belum simpan ke DB: penumpang belum aktif sampai petugas menekan Simpan.
     $("btnEdit").disabled = false;
     $("btnSave").disabled = false;
-    setStatus(
-      $("ktpStatus"),
-      "OCR selesai. Periksa data terhadap KTP, lalu tekan Simpan (atau Edit dulu bila ada yang keliru).",
-      "ok"
-    );
   } catch (err) {
+    $("ocrEmpty").classList.remove("hidden");
     setStatus($("ktpStatus"), err.message, "err");
   } finally {
+    hidePreloader();
     $("btnOcr").disabled = false;
   }
 };
@@ -219,7 +199,6 @@ $("btnSave").onclick = async () => {
     if (res.person) {
       setActivePassenger(res.person);
       $("btnShotReg").disabled = !camRegOn;
-      $("btnFileReg").disabled = !$("faceFile").files[0];
       setStatus(
         $("ktpStatus"),
         res.person_created
@@ -366,10 +345,6 @@ $("btnCamReg").onclick = async () => {
   }
 };
 
-$("faceFile").onchange = (e) => {
-  $("btnFileReg").disabled = !(e.target.files[0] && passengerId);
-};
-
 async function registerFace(blob, filename) {
   if (!passengerId) {
     setStatus($("regStatus"), "Belum ada penumpang aktif. Jalankan OCR KTP dulu.", "err");
@@ -380,7 +355,8 @@ async function registerFace(blob, filename) {
   fd.append("passenger_id", passengerId);
   fd.append("file", blob, filename);
 
-  setStatus($("regStatus"), "Memproses wajah… (model pertama kali dimuat ~300 MB)", "busy");
+  showPreloader("Memproses wajah…");
+  setStatus($("regStatus"), "", "");
   try {
     const res = await call("/api/v1/faces/register", fd);
     const accepted = res.registration_status === "ACCEPTED";
@@ -394,25 +370,11 @@ async function registerFace(blob, filename) {
       : "DITOLAK — kualitas di bawah ambang";
     verdict.className = "verdict " + (accepted ? "ok" : "bad");
 
-    // Crop wajah hasil alignment — presigned URL dari MinIO (bukan folder lokal).
+    // Foto wajah hasil proses — presigned URL dari penyimpanan.
     $("regCrop").src = res.face_url || "";
 
-    const q = res.quality.score;
-    $("regQualityBar").style.width = (q * 100).toFixed(1) + "%";
-    $("regQualityBar").style.background = accepted ? "var(--ok)" : "var(--bad)";
-    $("regQualityVal").textContent = q.toFixed(3);
-    $("regEmbed").textContent = res.embedding
-      ? `embedding ${res.embedding.model_version} → pgvector (${res.embedding.embedding_id})`
-      : "embedding tidak dibuat (wajah ditolak)";
-
-    const metrics = $("regMetrics");
-    metrics.innerHTML = "";
-    for (const [key, value] of Object.entries(res.quality.metrics)) {
-      metrics.insertAdjacentHTML(
-        "beforeend",
-        `<tr><th>${key}</th><td>${value.toFixed(2)}</td></tr>`
-      );
-    }
+    // Catatan: metrik kualitas & info embedding SENGAJA tidak ditampilkan ke
+    // user (tetap diproses & disimpan di server, hanya tidak dirender di UI).
 
     const reasons = $("regReasons");
     reasons.innerHTML = "";
@@ -424,13 +386,13 @@ async function registerFace(blob, filename) {
 
     setStatus(
       $("regStatus"),
-      accepted ? "Berhasil. Embedding tersimpan di pgvector." : "Wajah ditolak — perbaiki dan coba lagi.",
+      accepted ? "Wajah berhasil didaftarkan." : "Wajah ditolak — perbaiki dan coba lagi.",
       accepted ? "ok" : "err"
     );
-
-    if (accepted) $("btnVerify").disabled = !camVerOn;
   } catch (err) {
     setStatus($("regStatus"), err.message, "err");
+  } finally {
+    hidePreloader();
   }
 }
 
@@ -439,72 +401,4 @@ $("btnShotReg").onclick = async () => {
   registerFace(blob, "capture.jpg");
 };
 
-$("btnFileReg").onclick = () => {
-  const file = $("faceFile").files[0];
-  if (file) registerFace(file, file.name);
-};
-
-/* ===================================================== 3. VERIFIKASI WAJAH */
-let camVerOn = false;
-
-$("btnCamVer").onclick = async () => {
-  await startCamera(
-    $("camVer"), $("ovlVer"), $("camSelVer"), $("camInfoVer"),
-    () => {
-      camVerOn = true;
-      $("btnVerify").disabled = !passengerId;
-      $("btnIdentify").disabled = false;
-      $("btnCamVer").textContent = "Kamera Aktif";
-      $("btnCamVer").disabled = true;
-    }
-  );
-};
-
-async function match(endpoint, withPassenger) {
-  const blob = await grabFrame($("camVer"));
-  const fd = new FormData();
-  if (withPassenger) fd.append("passenger_id", passengerId);
-  fd.append("file", blob, "selfie.jpg");
-
-  setStatus($("verStatus"), "Mencocokkan…", "busy");
-  try {
-    const res = await call(endpoint, fd);
-
-    $("verEmpty").classList.add("hidden");
-    $("verResult").classList.remove("hidden");
-
-    const verdict = $("verVerdict");
-    const who = res.person ? res.person.full_name : null;
-    verdict.textContent = res.matched
-      ? `COCOK${who ? " — " + who : ""}`
-      : "TIDAK COCOK";
-    verdict.className = "verdict " + (res.matched ? "ok" : "bad");
-
-    // Skala -1..+1 dipetakan ke lebar 0..100%.
-    const pct = ((res.similarity + 1) / 2) * 100;
-    $("simBar").style.width = pct.toFixed(1) + "%";
-    $("simBar").style.background = res.matched ? "var(--ok)" : "var(--bad)";
-    $("simThreshold").style.left = (((res.threshold + 1) / 2) * 100).toFixed(1) + "%";
-    $("simVal").textContent = res.similarity.toFixed(4);
-
-    const rows = [
-      ["threshold", res.threshold],
-      ["faces_detected", res.faces_detected],
-      ["probe_det_score", res.probe_det_score],
-    ];
-    if (res.runner_up_similarity !== null && res.runner_up_similarity !== undefined) {
-      rows.push(["runner_up", res.runner_up_similarity]);
-    }
-    $("verMeta").innerHTML = rows
-      .map(([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`)
-      .join("");
-
-    setStatus($("verStatus"), res.matched ? "Terverifikasi." : "Wajah tidak cocok.",
-              res.matched ? "ok" : "err");
-  } catch (err) {
-    setStatus($("verStatus"), err.message, "err");
-  }
-}
-
-$("btnVerify").onclick = () => match("/api/v1/faces/verify", true);
-$("btnIdentify").onclick = () => match("/api/v1/faces/identify", false);
+// Verifikasi wajah dipindah ke halaman terpisah: /verify (web/verify.js).

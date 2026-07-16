@@ -36,9 +36,32 @@ class Settings(BaseSettings):
     ocr_lang: str = "en"  # KTP berhuruf Latin; model 'en' menangani ini dengan baik
     ocr_enable_mkldnn: bool = False  # lihat catatan di services/ocr/engine.py
 
-    # Deteksi & alignment wajah (InsightFace) — HANYA detektor + landmark + pose.
-    # Embedding-nya diambil dari FaceNet, lihat di bawah.
-    face_detector_model: str = "buffalo_l"
+    # --- Pemilihan backend inference wajah ---------------------------------
+    #
+    # Pipeline AI-nya SAMA (RetinaFace ResNet50 → alignment → FaceNet vggface2);
+    # yang berbeda hanya cara inference dijalankan. Pindah CPU→Metis cukup ganti
+    # nilai ini — TIDAK ada perubahan kode, model, maupun business logic.
+    #   "cpu"   → CPUFaceEngine  (onnxruntime untuk RetinaFace + facenet-pytorch)
+    #   "metis" → MetisFaceEngine (Axelera Runtime; artefak model sama, menyusul)
+    face_engine: str = "cpu"
+
+    # Deteksi + 5 landmark: RetinaFace ResNet50 (ONNX). Parameter DISAMAKAN PERSIS
+    # dengan model card Axelera 'retinaface-resnet50-widerface-onnx' agar hasil
+    # identik di CPU (sekarang) dan Metis (nanti) — satu artefak, dua backend.
+    #
+    # Default path & URL menunjuk artefak resmi Axelera (input 840x840).
+    retinaface_model_path: str = "models/Retinaface_resnet50_840.onnx"
+    retinaface_model_url: str = (
+        "https://media.axelera.ai/artifacts/model_cards/weights/others/"
+        "object_detection/Retinaface_resnet50_840.onnx"
+    )
+    retinaface_model_md5: str = "2c3dbe322cd8ca067e5bb561e0850513"  # verifikasi unduhan
+    retinaface_input_size: int = 840     # input_tensor_shape [1,3,840,840]
+    # conf_threshold 0.2 mengikuti model card Axelera (postprocess.decode-retinaface).
+    # Wajah skor rendah tetap terdeteksi lalu dinilai quality check — perilaku
+    # "deteksi dulu, kualitas kemudian" tetap terjaga.
+    retinaface_conf_threshold: float = 0.2   # = model card Axelera
+    retinaface_nms_threshold: float = 0.4    # = nms_iou_threshold Axelera
     face_det_size: int = 640
 
     # Embedding wajah: FaceNet InceptionResnetV1 (512-d)

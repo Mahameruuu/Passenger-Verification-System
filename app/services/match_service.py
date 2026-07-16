@@ -20,7 +20,7 @@ from app.models.gcp import EventType, Person, VerificationStatus
 from app.repositories.detection_event import DetectionEventRepository
 from app.repositories.embedding import EmbeddingRepository, SearchHit
 from app.repositories.person import PersonRepository
-from app.services.face.engine import DetectedFace, FaceEngine, HybridFaceEngine
+from app.services.face.engine import DetectedFace, FaceEngine, get_face_engine
 from app.services.storage import StorageService
 
 SELFIE_PREFIX = "selfie"
@@ -48,7 +48,8 @@ class MatchService:
         storage: StorageService | None = None,
     ) -> None:
         self.db = db
-        self.engine = engine or HybridFaceEngine()
+        # Backend dipilih via config (FACE_ENGINE) dan dimuat sekali per proses.
+        self.engine = engine or get_face_engine()
         self.storage = storage or StorageService()
         self.embeddings = EmbeddingRepository(db)
         self.persons = PersonRepository(db)

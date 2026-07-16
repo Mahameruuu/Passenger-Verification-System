@@ -39,7 +39,7 @@ class DuplicateNIKError(PIVSError):
 
 
 class FaceEngineError(PIVSError):
-    """InsightFace gagal memuat model atau memproses gambar."""
+    """Engine wajah (RetinaFace/FaceNet) gagal memuat model atau memproses gambar."""
 
 
 class NoFaceDetectedError(PIVSError):
@@ -84,3 +84,13 @@ class DuplicateFaceError(PIVSError):
         self.full_name = full_name
         self.nik = nik
         self.similarity = similarity
+
+
+class FaceMismatchError(PIVSError):
+    """Wajah yang didaftarkan TIDAK cocok dengan wajah orang ini yang sudah
+    terdaftar.
+
+    Mencegah menempelkan wajah orang BERBEDA ke satu identitas. Tanpa ini,
+    setelah satu KTP dibuat, wajah siapa pun bisa didaftarkan sebagai orang itu
+    — sehingga banyak orang berbeda dikenali sebagai satu orang yang sama.
+    """

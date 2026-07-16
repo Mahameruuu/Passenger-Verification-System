@@ -4,19 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PIVS — Passenger Identity Verification System</title>
-  <link rel="stylesheet" href="/ui/style.css" />
+  <link rel="stylesheet" href="/ui/style.css?v=7" />
 </head>
 <body>
   <header>
     <h1>PIVS</h1>
-    <p>Passenger Identity Verification System — demo visual</p>
-    <span id="health" class="badge">memeriksa…</span>
+    <p>Passenger Identity Verification System</p>
+    <a class="nav-link" href="/verify">Verifikasi Wajah →</a>
   </header>
 
   <nav>
     <button class="tab active" data-panel="p-ktp">1 · KTP + OCR</button>
     <button class="tab" data-panel="p-face">2 · Registrasi Wajah</button>
-    <button class="tab" data-panel="p-verify">3 · Verifikasi Wajah</button>
   </nav>
 
   <!-- ============================== 1. KTP ============================== -->
@@ -30,8 +29,7 @@
           <button id="btnUpload" class="primary" disabled>Upload</button>
           <button id="btnOcr" disabled>Jalankan OCR</button>
         </div>
-        <p class="hint">JPG/PNG, maksimal 5 MB. OCR pertama kali memuat model
-          PaddleOCR — butuh beberapa detik.</p>
+        <p class="hint">JPG atau PNG, maksimal 5 MB.</p>
         <div id="ktpStatus" class="status"></div>
       </div>
 
@@ -68,25 +66,15 @@
 
           <div class="row">
             <button type="button" id="btnEdit" disabled>Edit</button>
-            <button type="button" id="btnSave" class="primary" disabled>Simpan ke DB</button>
+            <button type="button" id="btnSave" class="primary" disabled>Simpan</button>
           </div>
           <p class="hint">Periksa hasil OCR terhadap KTP. Klik <b>Edit</b> untuk
             mengoreksi, lalu <b>Simpan</b> — akan ada konfirmasi sebelum data
             masuk database.</p>
         </form>
 
-        <div id="ocrMeta" class="meta hidden">
-          <div>Status: <b id="f-status">—</b></div>
-          <div>Confidence: <b id="f-conf">—</b></div>
-        </div>
         <ul id="ocrWarnings" class="warnings"></ul>
       </div>
-    </div>
-
-    <div class="card passenger-bar">
-      <span>Penumpang aktif:</span>
-      <code id="activePassenger">belum ada</code>
-      <span id="activeName" class="muted"></span>
     </div>
   </section>
 
@@ -113,12 +101,8 @@
           <button id="btnCamReg" class="primary">Nyalakan Kamera</button>
           <button id="btnShotReg" disabled>Ambil &amp; Daftarkan</button>
         </div>
-        <div class="row">
-          <input type="file" id="faceFile" accept="image/jpeg,image/png" />
-          <button id="btnFileReg" disabled>Daftarkan dari File</button>
-        </div>
-        <p class="hint">Kotak hijau hanyalah panduan di browser. Deteksi
-          sesungguhnya (InsightFace) dilakukan di server.</p>
+        <p class="hint">Pastikan hanya satu wajah, menghadap kamera, dengan
+          pencahayaan cukup.</p>
         <div id="regStatus" class="status"></div>
       </div>
 
@@ -129,70 +113,26 @@
           <div class="verdict" id="regVerdict">—</div>
           <div class="crop-wrap">
             <div>
-              <div class="cap">Crop wajah (112×112, hasil alignment)</div>
-              <img id="regCrop" class="crop" alt="crop wajah" />
-            </div>
-            <div class="scores">
-              <div class="score-label">Quality score</div>
-              <div class="bar"><div id="regQualityBar" class="fill"></div></div>
-              <div id="regQualityVal" class="score-val">—</div>
-              <div id="regEmbed" class="mono"></div>
+              <div class="cap">Foto wajah</div>
+              <img id="regCrop" class="crop" alt="foto wajah" />
             </div>
           </div>
-          <table id="regMetrics" class="metrics"></table>
           <ul id="regReasons" class="warnings"></ul>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ========================== 3. VERIFIKASI ========================== -->
-  <section id="p-verify" class="panel">
-    <div id="verTarget" class="target none">
-      Belum ada penumpang aktif — 1:1 butuh penumpang, 1:N tidak.
-    </div>
-    <div class="grid">
-      <div class="card">
-        <h2>Kamera</h2>
-        <div class="video-wrap">
-          <video id="camVer" autoplay playsinline muted></video>
-          <canvas id="ovlVer" class="overlay"></canvas>
-        </div>
-        <div class="cam-bar">
-          <span class="muted">Perangkat:</span>
-          <select id="camSelVer" class="cam-sel" disabled>
-            <option>— nyalakan kamera dulu —</option>
-          </select>
-        </div>
-        <div id="camInfoVer" class="cam-info"></div>
-        <div class="row">
-          <button id="btnCamVer" class="primary">Nyalakan Kamera</button>
-          <button id="btnVerify" disabled>Verifikasi 1:1</button>
-          <button id="btnIdentify" disabled>Identifikasi 1:N</button>
-        </div>
-        <p class="hint"><b>1:1</b> mencocokkan dengan penumpang aktif.
-          <b>1:N</b> mencari di antara semua wajah terdaftar.</p>
-        <div id="verStatus" class="status"></div>
-      </div>
+  <!-- Verifikasi wajah kini di halaman terpisah: /verify -->
 
-      <div class="card">
-        <h2>Hasil Pencocokan</h2>
-        <div id="verEmpty" class="empty">Belum ada hasil.</div>
-        <div id="verResult" class="hidden">
-          <div class="verdict" id="verVerdict">—</div>
-          <div class="score-label">Cosine similarity</div>
-          <div class="bar sim">
-            <div id="simBar" class="fill"></div>
-            <div id="simThreshold" class="threshold"></div>
-          </div>
-          <div class="sim-axis"><span>-1</span><span>0</span><span>+1</span></div>
-          <div id="simVal" class="score-val">—</div>
-          <table id="verMeta" class="metrics"></table>
-        </div>
-      </div>
+  <!-- Preloader layar penuh: tampil saat OCR diproses. -->
+  <div id="preloader" class="preloader hidden">
+    <div class="preloader-box">
+      <span class="spinner-lg"></span>
+      <p id="preloaderText">Memproses…</p>
     </div>
-  </section>
+  </div>
 
-  <script src="/ui/app.js"></script>
+  <script src="/ui/app.js?v=7"></script>
 </body>
 </html>

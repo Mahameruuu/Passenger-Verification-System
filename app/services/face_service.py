@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.exceptions import (
     DuplicateFaceError,
+    FaceMismatchError,
     InvalidImageError,
     MultipleFacesError,
     NoFaceDetectedError,
@@ -27,7 +28,8 @@ from app.models.gcp import (
 from app.repositories.detection_event import DetectionEventRepository
 from app.repositories.embedding import EmbeddingRepository
 from app.repositories.person import PersonRepository
-from app.services.face.engine import FaceEngine, HybridFaceEngine
+from app.services.face.engine import FaceEngine, get_face_engine
+from app.services.face.matcher import cosine_similarity
 from app.services.face.quality import QualityReport, assess
 from app.services.storage import StorageService
 
@@ -63,7 +65,8 @@ class FaceService:
         storage: StorageService | None = None,
     ) -> None:
         self.db = db
-        self.engine = engine or HybridFaceEngine()
+        # Backend dipilih via config (FACE_ENGINE) dan dimuat sekali per proses.
+        self.engine = engine or get_face_engine()
         self.storage = storage or StorageService()
         self.persons = PersonRepository(db)
         self.embeddings = EmbeddingRepository(db)
@@ -123,6 +126,11 @@ class FaceService:
         # embedding disimpan. Tanpa ini, siapa pun bisa mendaftarkan wajahnya ke
         # KTP orang lain lalu lolos verifikasi sebagai orang itu.
         self._reject_if_duplicate(face.embedding, person, crop.key, quality)
+
+        # Wajah baru harus KONSISTEN dengan wajah orang ini yang sudah terdaftar.
+        # Tanpa ini, setelah satu KTP dibuat, wajah orang berbeda bisa terus
+        # ditambahkan ke identitas yang sama — semua dikenali sebagai satu orang.
+        self._reject_if_identity_mismatch(face.embedding, person, crop.key, quality)
 
         try:
             embedding = self.embeddings.create(
@@ -187,6 +195,55 @@ class FaceService:
             full_name=hit.full_name,
             nik=hit.citizen_id or "-",
             similarity=hit.similarity,
+        )
+
+    def _reject_if_identity_mismatch(
+        self,
+        embedding: np.ndarray,
+        person: Person,
+        crop_key: str,
+        quality: QualityReport,
+    ) -> None:
+        """Tolak bila wajah baru tidak cocok dengan wajah orang ini yang sudah ada.
+
+        Foto acuan PERTAMA seseorang tidak bisa diperiksa (belum ada pembanding)
+        — di situ kepercayaan bertumpu pada petugas & KTP. Namun foto ke-2 dan
+        seterusnya WAJIB konsisten: bila kemiripan dengan wajah yang sudah
+        terdaftar di bawah ambang verifikasi, itu berarti orang yang berbeda.
+        """
+        existing = [
+            row
+            for row in self.embeddings.list_by_person(person.person_id)
+            if row.model_version == settings.face_model_version
+        ]
+        if not existing:
+            return  # wajah pertama untuk orang ini — tidak ada pembanding
+
+        best = max(
+            cosine_similarity(embedding, np.asarray(row.vector, dtype=np.float32))
+            for row in existing
+        )
+        if best >= settings.face_match_threshold:
+            return  # cocok dengan wajah orang ini — pose/foto tambahan yang sah
+
+        # Percobaan tetap dicatat: menempelkan wajah berbeda ke satu identitas
+        # adalah persis jenis kejadian yang perlu bisa ditelusuri.
+        self._record(
+            person_id=person.person_id,
+            raw_image_key=crop_key,
+            confidence=best,
+            status=VerificationStatus.REJECTED,
+            payload={
+                **quality.to_json(),
+                "identity_mismatch": True,
+                "best_similarity": round(best, 4),
+            },
+        )
+        raise FaceMismatchError(
+            f"Wajah ini tidak cocok dengan wajah {person.full_name} yang sudah "
+            f"terdaftar (kemiripan {best:.2f} < ambang {settings.face_match_threshold}). "
+            "Satu identitas hanya untuk satu orang. Untuk mendaftarkan orang lain, "
+            "upload KTP orang tersebut lebih dulu agar menjadi penumpang aktif."
         )
 
     def _record(

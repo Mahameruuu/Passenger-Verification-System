@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PIVS — Verifikasi Wajah</title>
+  <link rel="stylesheet" href="/ui/style.css?v=8" />
+</head>
+<body>
+  <header>
+    <h1>PIVS</h1>
+    <p>Verifikasi Wajah</p>
+    <a class="nav-link" href="/ui/">← Registrasi</a>
+  </header>
+
+  <section class="panel active">
+    <div class="grid">
+      <div class="card">
+        <h2>Kamera</h2>
+        <div class="video-wrap">
+          <video id="camVer" autoplay playsinline muted></video>
+          <canvas id="ovlVer" class="overlay"></canvas>
+        </div>
+        <div class="cam-bar">
+          <span class="muted">Perangkat:</span>
+          <select id="camSelVer" class="cam-sel" disabled>
+            <option>— memuat kamera… —</option>
+          </select>
+        </div>
+        <div id="camInfoVer" class="cam-info"></div>
+        <div class="row">
+          <button id="btnCamVer" class="primary hidden">Aktifkan Kamera</button>
+        </div>
+        <p class="hint">Wajah dicocokkan otomatis. Posisikan wajah di depan kamera.</p>
+      </div>
+
+      <div class="card">
+        <h2>Hasil</h2>
+        <div id="verVerdict" class="verdict big">Menyiapkan kamera…</div>
+        <div id="verWho" class="ver-who"></div>
+      </div>
+    </div>
+  </section>
+
+  <script src="/ui/verify.js?v=8"></script>
+</body>
+</html>

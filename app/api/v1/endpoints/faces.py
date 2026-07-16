@@ -8,6 +8,7 @@ from app.core.exceptions import (
     DuplicateFaceError,
     EmptyFileError,
     FaceEngineError,
+    FaceMismatchError,
     FaceNotRegisteredError,
     FileTooLargeError,
     InvalidFileTypeError,
@@ -63,7 +64,7 @@ def _to_match_response(result: MatchResult) -> FaceMatchResponse:
     summary="Registrasi wajah (FaceNet → pgvector)",
     description=(
         "Menerima satu frame kamera, lalu menjalankan:\n\n"
-        "**Detection (InsightFace) → Alignment → Quality Check → Crop → "
+        "**Detection (RetinaFace ResNet50) → Alignment → Quality Check → Crop → "
         "Embedding (FaceNet InceptionResnetV1, 512-d)**\n\n"
         "- Crop wajah 112×112 diunggah ke **MinIO** (`faces/<tahun>/<bulan>/`)\n"
         "- Embedding disimpan ke **`embedding_metadata.vector`** (pgvector)\n"
@@ -75,7 +76,7 @@ def _to_match_response(result: MatchResult) -> FaceMatchResponse:
     responses={
         400: {"model": ErrorResponse, "description": "File kosong / bukan JPG/PNG"},
         404: {"model": ErrorResponse, "description": "Orang tidak ditemukan"},
-        409: {"model": ErrorResponse, "description": "Wajah sudah terdaftar sebagai orang lain"},
+        409: {"model": ErrorResponse, "description": "Wajah milik orang lain, atau tidak cocok dengan wajah orang ini yang sudah terdaftar"},
         413: {"model": ErrorResponse, "description": "Ukuran file melebihi batas"},
         422: {"model": ErrorResponse, "description": "Nol atau >1 wajah, gambar rusak"},
     },
@@ -95,7 +96,7 @@ async def register_face(
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, str(exc)) from exc
     except PassengerNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except DuplicateFaceError as exc:
+    except (DuplicateFaceError, FaceMismatchError) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except (NoFaceDetectedError, MultipleFacesError, InvalidImageError) as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
@@ -222,7 +223,9 @@ def list_faces(
 )
 def face_model_info() -> dict:
     return {
-        "detector": settings.face_detector_model,
+        "engine_backend": settings.face_engine,
+        "detector": "RetinaFace ResNet50 (ONNX)",
+        "detector_model_path": settings.retinaface_model_path,
         "embedding_model": "FaceNet InceptionResnetV1",
         "pretrained": settings.facenet_pretrained,
         "model_version": settings.face_model_version,

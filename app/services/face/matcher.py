@@ -24,8 +24,8 @@ class MatchCandidate:
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     """Cosine similarity dua embedding, rentang -1..1.
 
-    Embedding InsightFace sudah L2-normalized, tapi normalisasi ulang tetap
-    dilakukan: file .npy bisa saja ditulis oleh versi lain yang tidak menormalkan,
+    Embedding FaceNet sudah L2-normalized, tapi normalisasi ulang tetap
+    dilakukan: vektor bisa saja berasal dari versi lain yang tidak menormalkan,
     dan dot product dari vektor tak-ternormalisasi BUKAN cosine similarity.
     """
     a = np.asarray(a, dtype=np.float32).ravel()

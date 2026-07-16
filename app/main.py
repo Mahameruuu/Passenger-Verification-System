@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -81,10 +81,24 @@ app.include_router(health.router)
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 
 # --------------------------------------------------------------------- UI
-# Halaman demo statis (HTML/CSS/JS) untuk melihat hasil CV secara visual.
+# Halaman statis (HTML/CSS/JS) untuk operasi visual.
+class NoCacheStaticFiles(StaticFiles):
+    """StaticFiles yang meminta browser TIDAK men-cache file UI.
+
+    Selama pengembangan UI, browser sering menyajikan app.js/style.css versi
+    lama dari cache sehingga perubahan tidak terlihat. Header no-cache memaksa
+    browser selalu mengambil versi terbaru. Hanya untuk /ui — API tidak terpengaruh.
+    """
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
+
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 if WEB_DIR.is_dir():
-    app.mount("/ui", StaticFiles(directory=WEB_DIR, html=True), name="ui")
+    app.mount("/ui", NoCacheStaticFiles(directory=WEB_DIR, html=True), name="ui")
 
 # Folder /storage lokal SUDAH DIHAPUS: file kini di MinIO. UI menampilkan gambar
 # lewat presigned URL yang dikembalikan API (image_url / face_url / selfie_url),
@@ -95,3 +109,9 @@ if WEB_DIR.is_dir():
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
     return RedirectResponse(url="/ui/")
+
+
+@app.get("/verify", include_in_schema=False)
+def verify_page():
+    # Halaman verifikasi wajah — terpisah dari halaman registrasi (/ui/).
+    return FileResponse(WEB_DIR / "verify.html")

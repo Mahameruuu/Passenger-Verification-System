@@ -18,13 +18,15 @@ paddlepaddle==3.3.1
 paddleocr==3.7.0
 pillow==11.3.0
 
-# Face — deteksi/alignment/pose (InsightFace) + embedding (FaceNet)
-insightface==1.0.1
+# Face — deteksi + 5 landmark: RetinaFace ResNet50 (ONNX via onnxruntime).
+# Artefak .onnx yang sama dipakai onnxruntime (CPU/GPU) sekarang & dikompilasi
+# untuk Axelera Metis nanti. InsightFace SUDAH DIHAPUS dari pipeline.
 onnxruntime==1.27.0
+scikit-image==0.24.0   # similarity transform untuk alignment 5-landmark
 opencv-python==4.10.0.84
 numpy==1.26.4
 torch==2.2.2
-facenet-pytorch==2.6.0
+facenet-pytorch==2.6.0  # embedding: FaceNet InceptionResnetV1 vggface2 (512-d)
 
 # tools/capture_face.py (live camera client)
 requests==2.32.3
